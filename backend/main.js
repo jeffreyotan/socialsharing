@@ -126,6 +126,10 @@ app.post('/login', express.urlencoded({ extended: true }), express.json(), async
 });
 
 app.post('/share', express.urlencoded({ extended: true }), express.json(), multipart.single('image-file'), async (req, res, next) => {
+    res.on('finish', () => {
+        fs.unlink(req.file.path, () => {});
+    });
+
     const body = req.body;
     console.info('=> in /share with body:', JSON.stringify(body));
 
