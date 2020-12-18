@@ -3,6 +3,7 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CameraService } from '../camera.service';
 import { WebService } from '../web.service';
+import { WebShareResult } from '../models';
 
 @Component({
   selector: 'app-main',
@@ -16,22 +17,26 @@ export class MainComponent implements OnInit {
 	form: FormGroup;
 	isImageLoaded: boolean;
 
-	imagePath = '/assets/cactus.png';
+	imagePath: string = '/assets/cactus.png';
+	mongoObjectId: string = '';
 
 	constructor(private cameraSvc: CameraService, private fb: FormBuilder, private webSvc: WebService, private router: Router) { }
 
 	ngOnInit(): void {
-	  if (this.cameraSvc.hasImage()) {
-		  const img = this.cameraSvc.getImage();
-		  this.imagePath = img.imageAsDataUrl;
-	  }
+		this.form = this.fb.group({
+			title: this.fb.control('', [ Validators.required ]),
+			comments: this.fb.control('', [ Validators.required ]),
+			picture: this.fb.control('', [ Validators.required ])
+		});
 
-	  this.form = this.fb.group({
-		  title: this.fb.control('', [ Validators.required ]),
-		  comments: this.fb.control('', [ Validators.required ])
-	  });
+		if (this.cameraSvc.hasImage()) {
+			const img = this.cameraSvc.getImage();
+			this.imagePath = img.imageAsDataUrl;
 
-	  this.isImageLoaded = false;
+			this.form.get('picture').patchValue('picture');
+		}
+
+	  	this.isImageLoaded = this.cameraSvc.hasImage();
 	}
 
 	clear() {
@@ -52,13 +57,17 @@ export class MainComponent implements OnInit {
 		formData.set('image-file', this.cameraSvc.getImage().imageData);
 
 		try {
-			const result = await this.webSvc.sendWebShare(formData);
+			const result: WebShareResult = await this.webSvc.sendWebShare(formData) as WebShareResult;
 
 			// if no failure at this point, run clear()
+			this.mongoObjectId = result.id;
+			this.cameraSvc.clear();
 			this.clear();
 		} catch (e) {
 			console.log("=> Error on sharing:", e);
-			this.router.navigate(['/']);
+			if(e.status === 401) {
+				this.router.navigate(['/']);
+			}
 		}
 	}
 }

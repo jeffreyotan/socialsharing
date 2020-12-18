@@ -2,6 +2,7 @@
 const morgan = require('morgan');
 const express = require('express');
 const mysql = require('mysql2/promise');
+const sha1 = require('sha1');
 
 // load libraries for S3
 const multer = require('multer');
@@ -94,8 +95,8 @@ const validatePassword = async (username, password) => {
 
     const result = await authUser([ username ]);
 
-    console.info(`=> password:${password}, result[0].password:${result[0].password}`);
-    if(result && result.length && (result[0].password === password)) {
+    console.info(`=> password:${password}, sha1:${sha1(password)}, result[0].password:${result[0].password}`);
+    if(result && result.length && (result[0].password === sha1(password))) {
         console.info('=> we got the isAuth');
         isAuth = true;
     }
@@ -164,7 +165,8 @@ app.post('/share', express.urlencoded({ extended: true }), express.json(), multi
                     mongoClient.db(MONGO_DB_NAME).collection(MONGO_COLLECTION_NAME)
                         .insertOne(doc)
                         .then(result2 => {
-                            console.info('=> mongo insert result:', result2);
+                            console.info('=> Successfully uploaded to mongo');
+                            // console.info('=> mongo insert result:', result2);
                             res.status(200).contentType('application/json').json({ status: 'ok', id: result2.ops[0]._id });
                         }).catch(e => {
                             console.error('=> Error while updating mongo:', e);
@@ -177,6 +179,8 @@ app.post('/share', express.urlencoded({ extended: true }), express.json(), multi
         res.status(401).contentType('application/json').json({ status: 'fail' });
     }
 });
+
+app.use(express.static(__dirname + '/public'));
 
 // start the server
 const startApp = async (newApp, newPool) => {
