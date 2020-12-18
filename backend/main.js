@@ -66,6 +66,7 @@ const multipart = multer({
     dest: process.env.TMP_DIR || path.join(__dirname, "/uploads/")
 });
 const cloudEP = process.env.CLOUD_ENDPOINT;
+const s3Bucket = process.env.CLOUD_BUCKET;
 const endpoint = new AWS.Endpoint(cloudEP);
 const s3 = new AWS.S3({
     endpoint: endpoint,
@@ -73,29 +74,108 @@ const s3 = new AWS.S3({
     secretAccessKey: process.env.SECRET_ACCESS_KEY
 });
 
-// define constants for mongodb
-const MONGO_DB_NAME = '';
-const MONGO_COLLECTION_NAME = '';
+// define constants and functions for mongodb
+const MONGO_DB_NAME = 'webshare';
+const MONGO_COLLECTION_NAME = 'sharing';
+
+const mkSocialEntry = (params, imgUrl) => {
+    return {
+        ts: new Date(),
+        title: params.title,
+        comments: params.comments,
+        image: imgUrl
+    }
+};
+
+// other needed functions
+const validatePassword = async (username, password) => {
+    let isAuth = false; // assume not authenticated
+    // console.info(`=> username:${username}, password:${password}`);
+
+    const result = await authUser([ username ]);
+
+    console.info(`=> password:${password}, result[0].password:${result[0].password}`);
+    if(result && result.length && (result[0].password === password)) {
+        console.info('=> we got the isAuth');
+        isAuth = true;
+    }
+    return isAuth;
+};
 
 // define middleware and routes
 app.use(morgan('combined'));
 
 // POST /login with payload in the body
-app.post('/login', express.urlencoded({ extended: true }), express.json(), (req, res, next) => {
+app.post('/login', express.urlencoded({ extended: true }), express.json(), async (req, res, next) => {
 	const body = req.body;
     console.info('=> in /login with body:', body);
 
-    authUser([ body['username'] ]).then(result => {
-        // console.info(`=> password:${JSON.stringify(result[0]['password'])}, body.password:${body['password']}`);
-        if(result && result.length && result[0]['password'] === body['password']) {
+    try {
+        const isAuth = await validatePassword(body['username'], body['password']);
+        console.info("=> isAuth:", isAuth);
+        if(isAuth) {
             res.status(200).contentType('application/json').json({ status: 'ok' });
         } else {
             res.status(401).contentType('application/json').json({ status: 'fail' });
         }
-    }).catch(e => {
+    } catch (e) {
         console.error("=> Something went wrong with the mysql query!", e);
         res.status(500).contentType('application/json').json({ status: 'internal server error' });
-    });
+    }
+});
+
+app.post('/share', express.urlencoded({ extended: true }), express.json(), multipart.single('image-file'), async (req, res, next) => {
+    const body = req.body;
+    console.info('=> in /share with body:', JSON.stringify(body));
+
+    const isAuth = await validatePassword(body['username'], body['password']);
+    if(isAuth) {
+        const prom = new Promise( (resolve, reject) => {
+            fs.readFile(req.file.path, (err, imgFile) => {
+                if(err != null) {
+                    reject(err);
+                } else {
+                    resolve(imgFile);
+                }
+            });
+        });
+        let s3FileUrl = "";
+        prom.then(imgFile => {
+            const params = {
+                Bucket: s3Bucket,
+                Key: req.file.filename,
+                Body: imgFile,
+                ACL: 'public-read',
+                ContentType: req.file.mimetype,
+                ContentLength: req.file.size,
+                Metadata: {
+                    title: req.body['title']
+                }
+            };
+            s3.putObject(params, (error, result) => {
+                if(error != null) {
+                    console.error('=> Unable to upload to S3:', error);
+                    res.status(500).contentType('application/json').json({ status: 'Failed while uploading to S3' });
+                } else {
+                    console.info('=> Successfully uploaded to S3:', result);
+                    s3FileUrl = "https://" + s3Bucket + "." + cloudEP + "/" + req.file.filename;
+
+                    const doc = mkSocialEntry(body, s3FileUrl);
+                    mongoClient.db(MONGO_DB_NAME).collection(MONGO_COLLECTION_NAME)
+                        .insertOne(doc)
+                        .then(result2 => {
+                            console.info('=> mongo insert result:', result2);
+                            res.status(200).contentType('application/json').json({ status: 'ok', id: result2.ops[0]._id });
+                        }).catch(e => {
+                            console.error('=> Error while updating mongo:', e);
+                            res.status(500).contentType('application/json').json({ status: 'Failed while uploading to mongo' });
+                        })
+                }
+            });
+        });
+    } else {
+        res.status(401).contentType('application/json').json({ status: 'fail' });
+    }
 });
 
 // start the server
