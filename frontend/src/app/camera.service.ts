@@ -1,5 +1,5 @@
-import {Injectable} from "@angular/core";
-import {CameraImage} from './models';
+import { Injectable } from "@angular/core";
+import { CameraImage } from './models';
 
 @Injectable()
 export class CameraService {

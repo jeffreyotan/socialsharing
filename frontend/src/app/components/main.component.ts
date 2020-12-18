@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import {CameraService} from '../camera.service';
+import { CameraService } from '../camera.service';
 
 @Component({
   selector: 'app-main',
@@ -8,18 +8,18 @@ import {CameraService} from '../camera.service';
 })
 export class MainComponent implements OnInit {
 
-	imagePath = '/assets/cactus.png'
+	imagePath = '/assets/cactus.png';
 
 	constructor(private cameraSvc: CameraService) { }
 
 	ngOnInit(): void {
 	  if (this.cameraSvc.hasImage()) {
-		  const img = this.cameraSvc.getImage()
-		  this.imagePath = img.imageAsDataUrl
+		  const img = this.cameraSvc.getImage();
+		  this.imagePath = img.imageAsDataUrl;
 	  }
 	}
 
 	clear() {
-		this.imagePath = '/assets/cactus.png'
+		this.imagePath = '/assets/cactus.png';
 	}
 }

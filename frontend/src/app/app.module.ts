@@ -1,13 +1,16 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { NgModule } from '@angular/core';
-import {RouterModule, Routes} from '@angular/router';
+import { RouterModule, Routes } from '@angular/router';
+import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { HttpClientModule } from '@angular/common/http';
 import { WebcamModule } from 'ngx-webcam'
 
 import { AppComponent } from './app.component';
 import { MainComponent } from './components/main.component';
 import { CaptureComponent } from './components/capture.component';
-import {CameraService} from './camera.service';
 import { LoginComponent } from './components/login.component';
+import { CameraService } from './camera.service';
+import { WebService } from './web.service';
 
 const ROUTES: Routes = [
 	{ path: '', component: LoginComponent },
@@ -24,9 +27,15 @@ const ROUTES: Routes = [
   imports: [
 		BrowserModule, 
 		RouterModule.forRoot(ROUTES),
-		WebcamModule,
+    WebcamModule,
+    FormsModule,
+    ReactiveFormsModule,
+    HttpClientModule
   ],
-  providers: [ CameraService ],
+  providers: [
+    CameraService,
+    WebService
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }
